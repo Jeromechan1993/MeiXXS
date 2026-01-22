@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>皇帝后宫模拟器 · 梅小小篇</title>
+  <style>
+    body {
+      background: #f5e9d7;
+      font-family: "SimSun", serif;
+      color: #3e2723;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #fff8e1;
+      border: 4px solid #d4af37;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+    h1 { text-align: center; color: #b71c1c; }
+    .month { text-align: center; font-weight: bold; margin: 10px 0; }
+    .stats-row {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .stat-box {
+      background: #f9f5e9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      min-width: 120px;
+      text-align: center;
+    }
+    .favor-box {
+      background: #e8f5e9;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+    }
+    .favor-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .favor-item {
+      background: #f1f8e9;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .log {
+      background: #fdf6ec;
+      padding: 12px;
+      min-height: 100px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin: 10px 0;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+    .choices button {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin: 6px 0;
+      background: #d4af37;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: "SimSun", serif;
+      font-size: 15px;
+      text-align: left;
+      padding-left: 16px;
+    }
+    .choices button:hover { background: #b7950b; }
+    .btn-restart {
+      background: #b71c1c;
+      color: white;
+      border: none;
+      padding: 12px;
+      width: 100%;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 15px;
+      font-family: "SimSun", serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>皇帝后宫模拟器*梅小小篇</h1>
+    <div class="month" id="monthDisplay">永昌元年 三月</div>
+
+    <div class="stats-row">
+      <div class="stat-box">威望: <span id="weiwang">30</span></div>
+      <div class="stat-box">国库: <span id="guoku">40</span>万两</div>
+      <div class="stat-box">体力: <span id="tili">60</span>/100</div>
+      <div class="stat-box">行动: <span id="actions">3</span>次</div>
+    </div>
+
+    <div class="favor-box">
+      <div class="favor-title">妃嫔好感</div>
+      <div class="favor-list" id="favorList"></div>
+    </div>
+
+    <div class="log" id="log"></div>
+    <div class="choices" id="choices"></div>
+    <button class="btn-restart" onclick="newGame()">重新开始</button>
+  </div>
+
+  <script>
+    const consorts = ['沈知意', '柳烟萝', '赫连明珠', '苏挽晴', '玉真子'];
+    
+    let game = {
+      month: 0,
+      威望: 30,
+      国库: 40,
+      体力: 60,
+      行动次数: 3,
+      结局已触发: false,
+      沈知意: 50,
+      柳烟萝: 50,
+      赫连明珠: 50,
+      苏挽晴: 50,
+      玉真子: 50
+    };
+
+    // ✅ 修复：仅使用 game 中存在的属性！
+    const events = [
+      { id: 'e1', title: '摄政王上奏：“陛下年幼，六部奏章由老臣代批。”',
+        choices: [
+          { text: '“准。”', effects: { 威望: -5 } },
+          { text: '“朕虽年少，亦知祖制。奏章照常呈递。”', effects: { 威望: +10, 体力: -5 } },
+          { text: '（冷笑）“昨夜天象示警：权臣当诛。”', effects: { 威望: +5, 国库: -5 } }
+        ]
+      },
+      { id: 'e2', title: '沈贵妃送来亲手熬的药。',
+        choices: [
+          { text: '喝下', effects: { 体力: +10, 沈知意: +10 } },
+          { text: '赏给太监试毒', effects: { 沈知意: -15 } },
+          { text: '笑问：“爱妃可知，这药里缺一味‘真心’？”', effects: { 沈知意: +15, 威望: +5 } }
+        ]
+      },
+      { id: 'e3', title: '西域进献美男子十二人，善胡旋舞。',
+        choices: [
+          { text: '全部纳入乐坊', effects: { 国库: -2, 体力: +5 } },
+          { text: '赐婚给宗室', effects: { 威望: +5 } },
+          { text: '留一人在身边伺候', effects: { 威望: -10, 体力: +10 } }
+        ]
+      },
+      { id: 'e4', title: '江南急报：水患成灾，流民百万。',
+        choices: [
+          { text: '开仓赈灾', effects: { 威望: +15, 国库: -20, 体力: -5 } },
+          { text: '命地方自理', effects: { 威望: -20, 国库: +5 } },
+          { text: '派钦差查办贪官', effects: { 威望: +10, 国库: -10, 体力: -10 } }
+        ]
+      },
+      { id: 'e5', title: '柳烟萝求见，说她兄长被诬为白莲教匪首。',
+        choices: [
+          { text: '下令彻查', effects: { 柳烟萝: +20, 国库: -5 } },
+          { text: '不予理会', effects: { 柳烟萝: -30 } },
+          { text: '暗中派人保护其兄', effects: { 柳烟萝: +25, 体力: -5 } }
+        ]
+      },
+      { id: 'e6', title: '赫连明珠请求回草原祭祖。',
+        choices: [
+          { text: '准，并派兵护送', effects: { 赫连明珠: +15, 国库: -8 } },
+          { text: '不准，恐其通敌', effects: { 赫连明珠: -25, 威望: -5 } },
+          { text: '允其秘密前往', effects: { 赫连明珠: +10 } }
+        ]
+      },
+      { id: 'e7', title: '苏挽晴整理古籍时，发现前朝藏宝图。',
+        choices: [
+          { text: '命她继续追查', effects: { 苏挽晴: +10, 体力: -5 } },
+          { text: '烧毁藏宝图', effects: { 苏挽晴: -20, 威望: +5 } },
+          { text: '与她共谋寻宝', effects: { 苏挽晴: +30, 国库: +15 } }
+        ]
+      },
+      { id: 'e8', title: '玉真子献上新炼丹方：“九转还魂丹”。',
+        choices: [
+          { text: '服用', effects: { 体力: +20 } },
+          { text: '赐给老太监试服', effects: { 玉真子: -15 } },
+          { text: '斥其妖言，禁炼丹', effects: { 玉真子: -25, 威望: +10 } }
+        ]
+      },
+      { id: 'e9', title: '科举放榜，寒门学子占比不足一成。',
+        choices: [
+          { text: '扩招寒门', effects: { 威望: +10, 国库: -5 } },
+          { text: '维持旧制', effects: { 威望: -5 } },
+          { text: '增设武举名额', effects: { 威望: +5, 国库: -3 } }
+        ]
+      },
+      { id: 'e10', title: '边关急报：匈奴犯境，掠三城！',
+        choices: [
+          { text: '发兵征讨', effects: { 国库: -25, 威望: +10 } },
+          { text: '遣使和亲', effects: { 赫连明珠: -20, 国库: +5 } },
+          { text: '按兵不动', effects: { 威望: -20 } }
+        ]
+      }
+    ];
+
+    function getMonthName(m) {
+      const years = Math.floor(m / 12);
+      const months = ['正月', '二月', '三月', '四月', '五月', '六月',
+                      '七月', '八月', '九月', '十月', '十一月', '腊月'];
+      return `永昌${years === 0 ? '' : (years + 1)}年 ${months[m % 12]}`;
+    }
+
+    function updateUI() {
+      document.getElementById('monthDisplay').innerText = getMonthName(game.month);
+      document.getElementById('weiwang').innerText = game.威望;
+      document.getElementById('guoku').innerText = game.国库;
+      document.getElementById('tili').innerText = game.体力;
+      document.getElementById('actions').innerText = game.行动次数;
+
+      let favorHTML = '';
+      for (let name of consorts) {
+        let val = game[name] || 50;
+        let color = val >= 70 ? '#2e7d32' : val <= 30 ? '#c62828' : '#5d4037';
+        favorHTML += `<div class="favor-item" style="color:${color}">${name}: ${val}</div>`;
+      }
+      document.getElementById('favorList').innerHTML = favorHTML;
+    }
+
+    function log(msg) {
+      const logEl = document.getElementById('log');
+      logEl.innerText += msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clamp(value, min = 0, max = 100) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function applyEffects(effects) {
+      for (let key in effects) {
+        if (game.hasOwnProperty(key)) {
+          game[key] += effects[key];
+          if (key !== '体力') {
+            game[key] = clamp(game[key]);
+          } else {
+            game[key] = clamp(game[key], 0, 100);
+          }
+        }
+      }
+    }
+
+    function checkEndings() {
+      if (game.威望 >= 90 && game.国库 >= 80) {
+        endGame('千古一帝', '你励精图治，开疆拓土，史称“昭武大帝”！');
+        return true;
+      }
+      if (game.体力 <= 0) {
+        endGame('英年早逝', '龙体崩殂，天下大乱……');
+        return true;
+      }
+      if (game.威望 <= 0) {
+        endGame('废帝', '宗室逼宫，你被废为庶人，幽禁冷宫。');
+        return true;
+      }
+      if (game.国库 <= 0 && game.威望 <= 20) {
+        endGame('亡国之君', '国库枯竭，民变四起，大胤亡于你手。');
+        return true;
+      }
+      return false;
+    }
+
+    function endGame(title, desc) {
+      game.结局已触发 = true;
+      document.getElementById('log').innerHTML = `<div style="text-align:center;padding:20px;background:#ffe0b2;border-radius:8px;"><h2>${title}</h2><p>${desc}</p></div>`;
+      document.getElementById('choices').innerHTML = '';
+    }
+
+    function newGame() {
+      game = {
+        month: 0,
+        威望: 30,
+        国库: 40,
+        体力: 60,
+        行动次数: 3,
+        结局已触发: false,
+        沈知意: 50,
+        柳烟萝: 50,
+        赫连明珠: 50,
+        苏挽晴: 50,
+        玉真子: 50
+      };
+      document.getElementById('log').innerText = '【永昌元年 三月】\n先帝驾崩，十六岁的你登基为帝。朝堂虎视，后宫未立，江山如危卵……\n';
+      updateUI();
+      showChoices();
+    }
+
+    let usedEvents = [];
+
+    function showChoices() {
+      if (game.结局已触发) return;
+      if (checkEndings()) return;
+
+      if (game.行动次数 > 0) {
+        let available = events.filter(e => !usedEvents.includes(e.id));
+        if (available.length === 0) usedEvents = [];
+        const event = available[Math.floor(Math.random() * available.length)];
+        usedEvents.push(event.id);
+
+        let html = `<strong>${event.title}</strong><br><br>`;
+        event.choices.forEach((choice, idx) => {
+          html += `<button onclick="handleChoice('${event.id}', ${idx})">${choice.text}</button>`;
+        });
+        document.getElementById('choices').innerHTML = html;
+      } else {
+        game.month++;
+        game.行动次数 = 3;
+        usedEvents = [];
+        log(`\n【${getMonthName(game.month - 1)}结束】`);
+        if (game.体力 < 30) {
+          game.体力 -= 10;
+          log('龙体虚弱，本月病卧三日。');
+        }
+        if (game.国库 < 10) {
+          game.威望 -= 5;
+          log('国库空虚，百官怨声载道。');
+        }
+        log(`\n【${getMonthName(game.month)}】新的一月开始了……`);
+        updateUI();
+        showChoices();
+      }
+    }
+
+    window.handleChoice = function(eventId, choiceIndex) {
+      const event = events.find(e => e.id === eventId);
+      const choice = event.choices[choiceIndex];
+      applyEffects(choice.effects);
+      log(`→ 你选择了：${choice.text}`);
+      game.行动次数--;
+      updateUI();
+      setTimeout(showChoices, 600);
+    };
+
+    window.onload = () => {
+      newGame();
+    };
+  </script>
+</body>
+</html>
